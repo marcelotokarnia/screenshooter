@@ -27,10 +27,10 @@ const getScreenshot = async (url, isDev, waitTime) => {
   return base64Image
 }
 
-exports.handler = async (event, context) => {
+exports.handler = async event => {
   const qs = new URLSearchParams(event.queryStringParameters)
   const waitTime = qs.get('waitTime')
-  const url = qs.get('url')
+  const url = decodeURIComponent(qs.get('url'))
   const isDev = process.env.URL.includes('http://localhost')
 
   const photoBuffer = await getScreenshot(url, isDev, waitTime)
