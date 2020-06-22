@@ -1,6 +1,8 @@
 const chrome = require('chrome-aws-lambda')
 const puppeteer = require('puppeteer-core')
 const wait = require('waait')
+const cloudinary = require('cloudinary')
+const streamifier = require('streamifier')
 
 const exePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
@@ -23,21 +25,43 @@ const getScreenshot = async (url, isDev, waitTime) => {
   await page.goto(url)
   await wait(waitTime)
   const buffer = await page.screenshot({ type: 'png' })
-  const base64Image = buffer.toString('base64')
-  return base64Image
+  return buffer
 }
+
+const uploadToCloud = (buffer, filename) =>
+  new Promise((resolve, reject) => {
+    const preffix = new Intl.DateTimeFormat('pt-BR')
+      .format(new Date())
+      .split('/')
+      .reverse()
+      .join('-')
+
+    const uploadStream = cloudinary.v2.uploader.upload_stream(
+      {
+        public_id: `screenshots/${preffix}${filename ? `-${filename}` : ''}`,
+      },
+      (err, result) => {
+        if (err) {
+          return reject(err)
+        }
+        return resolve(result)
+      }
+    )
+    streamifier.createReadStream(buffer).pipe(uploadStream)
+  })
 
 exports.handler = async event => {
   const qs = new URLSearchParams(event.queryStringParameters)
   const waitTime = qs.get('waitTime')
+  const filename = qs.get('filename')
   const url = decodeURIComponent(qs.get('url'))
   const isDev = process.env.URL.includes('http://localhost')
 
   const photoBuffer = await getScreenshot(url, isDev, waitTime)
 
+  const cloudImg = await uploadToCloud(photoBuffer, filename)
   return {
     statusCode: 200,
-    body: photoBuffer,
-    isBase64Encoded: true,
+    body: cloudImg.url,
   }
 }
